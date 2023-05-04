@@ -25,14 +25,12 @@ class ADMM_Net(nn.Module):
             self.stackedShape = (self.batch_size, 2 * self.DIMS0, 2 * self.DIMS1, 2)
 
         self.h_var = torch.nn.Parameter(torch.tensor(h, dtype=torch.float64, device=cuda_device), requires_grad=False)  # Kernel
-        self.h_zeros = torch.nn.Parameter(torch.zeros(self.DIMS0*2, self.DIMS1*2, dtype=torch.float64, device=self.cuda_device),
-                                          requires_grad=False)
+        
 
         self.PAD_SIZE0 = int((self.DIMS0)//2)                           # Pad size to 2* size of PSF
         self.PAD_SIZE1 = int((self.DIMS1)//2)                           # Pad size  to 2 * size of PSF
         ##pdb.set_trace()
         h = torch.tensor(h).view(1, h.shape[0], h.shape[1])
-    
         ##### Initialize ADMM variables #####
       
         self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, h)))
@@ -80,7 +78,7 @@ class ADMM_Net(nn.Module):
         self.plotInput(y)
 
         # initial self.X    
-        self.iterations = 500
+        self.iterations = 100
         for i in range(self.iterations):
             self.X  = self.admm_updates(y)
     

@@ -5,19 +5,8 @@ from utils.dataloader import ImageDataset
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np 
 import argparse
-
-images_jsons = {
-        "DiffuserImage": {  
-                        "112": "sample_images/diffuser/im112.npy",
-                        "43": "sample_images/diffuser/im43.npy",
-                        "65": "sample_images/diffuser/im65.npy",
-                        "157": "sample_images/diffuser/im157.npy",},
-        "TruthImage": {
-                        "112": "sample_images/lensed/im112.npy", 
-                        "43": "sample_images/lensed/im43.npy",
-                        "65": "sample_images/lensed/im65.npy",
-                        "157": "sample_images/lensed/im157.npy",}
-}
+from tqdm import tqdm
+import os 
 
 def saveCheckPoint(epoch,model_state_dict, optimizer, loss, path):
     torch.save({
@@ -39,6 +28,13 @@ def getOptimizer(model):
 
 
 def train_test_split(train_dataset, test_size=0.2):
+    if (os.path.exists("trainTestSplit/train_idx.npy") and os.path.exists("trainTestSplit/test_idx.npy")):
+        train_idx = np.load("trainTestSplit/train_idx.npy")
+        test_idx = np.load("trainTestSplit/test_idx.npy")
+        train_sampler = SubsetRandomSampler(train_idx)
+        test_sampler = SubsetRandomSampler(test_idx)
+        return train_sampler, test_sampler
+    
     num_train = len(train_dataset)
     indices = list(range(num_train))
     split = int(np.floor(0.1 * num_train))
@@ -46,23 +42,27 @@ def train_test_split(train_dataset, test_size=0.2):
     np.random.seed(0)
     np.random.shuffle(indices)
     train_idx, valid_idx = indices[split:], indices[:split]
+    np.save("trainTestSplit/train_idx.npy", train_idx)
+    np.save("trainTestSplit/test_idx.npy", valid_idx)
     train_sampler = SubsetRandomSampler(train_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
     return train_sampler, valid_sampler
 
 def train(epochs, json,  batch_size):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("THIS IS THE DEVICE")
+    print("THIS IS THE DEVICE", device)
     # load the data
     dataSet = ImageDataset(json, rgb=True)
     train, test = train_test_split(dataSet)
-
+   
     train_data = DataLoader(dataset=dataSet, batch_size=batch_size, sampler=train)
     test_data = DataLoader(dataset=dataSet, batch_size=batch_size, sampler=test)
 
     assert len(train_data) > 0
     assert len(test_data) > 0
-    assert len(train_data) + len(test_data) == len(dataSet)
+    print("Length of train data: ", len(train_data))
+    print("Length of test data: ", len(test_data))
+
     # create the model
     model = UNet270480(in_shape=dataSet[0]["image"].shape)
     model.to(device)
@@ -70,10 +70,12 @@ def train(epochs, json,  batch_size):
     optimizer, lr_scheduler = getOptimizer(model)
     running_loss = 0.0
     model.train()
+
     # train the model
-    for epoch in range(epochs):
-        for i, batch in enumerate(train_data):
+    for epoch in tqdm(range(epochs)):
+        for i, batch in tqdm(enumerate(train_data)):
             input, target = batch["image"], batch["Target"]
+            input, target = input.to(device), target.to(device)
             optimizer.zero_grad()
             output = model(input)
             loss = loss_fn(output, target)
@@ -87,9 +89,9 @@ def train(epochs, json,  batch_size):
             saveCheckPoint(epoch, model.state_dict(), optimizer, running_loss, "checkpoints/epoch" + str(epoch) + ".pt")
             running_loss = 0.0
     print("Finished Training")
+    saveCheckPoint(epoch, model.state_dict(), optimizer, running_loss, "checkpoints/epoch" + str(epochs) + ".pt")
 
-    # save the model
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=0, required=True)
     parser.add_argument("--json", type=str, default="", required=True)
@@ -97,3 +99,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
     train(args.epochs, args.json, batch_size=args.batch_size)
+    # save the model    
+if __name__ == "__main__":
+    main()

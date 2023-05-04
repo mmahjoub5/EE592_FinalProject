@@ -8,14 +8,14 @@ from PIL import Image
 import skimage
 
 class ImageDataset(Dataset):
-    def __init__(self, json_file, rgb= False, transform=None):
+    def __init__(self, json_file, bg= None, rgb= False, transform=None):
         with open(json_file) as f:
             self.json_file = json.load(f)
         self.transform = transform
         self.keys  = list(self.json_file["DiffuserImage"].keys())
         print(self.json_file.keys())
         self.rgb = rgb
-
+        self.bg = bg
     def __len__(self):
         return len(self.json_file["DiffuserImage"])
 
@@ -26,11 +26,18 @@ class ImageDataset(Dataset):
         label_path = self.json_file["TruthImage"][self.keys[idx]]
 
         if self.rgb == True:
-            image = np.load(image_path)
-            label = np.load(label_path)
+            try:
+                print(image_path)
+                image = np.load(image_path)
+                label = np.load(label_path)
 
-            image = torch.FloatTensor(image).permute(2,0,1)
-            label = torch.FloatTensor(label).permute(2,0,1)
+                image = torch.FloatTensor(image).permute(2,0,1)
+                label = torch.FloatTensor(label).permute(2,0,1)
+                if self.bg is not None:
+                    image = image - self.bg
+                    label = label - self.bg
+            except:
+                print("Error loading image: ", image_path)
         else:
 
             image = rgb2gray(np.load(image_path))
@@ -40,7 +47,8 @@ class ImageDataset(Dataset):
             label = torch.FloatTensor(label)
 
         # should we normalize the image here?
-
+        image /= torch.norm(image.ravel())
+        label /= torch.norm(label.ravel())
         sample = {"image": image, "Target": label, "Id": self.keys[idx]}
         if self.transform:
             sample = self.transform(sample)
@@ -67,16 +75,20 @@ def rgb2gray(rgb):
     return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
 
-def load_psf_image(psf_file, ds= 4, rgb = True):
-    if rgb==True:
+def load_psf_image(psf_file, ds= 4, rgb = False):
+    if rgb==False:
         my_psf = rgb2gray(np.array(Image.open(psf_file)))
     else:
         my_psf = np.array(Image.open(psf_file))
-    psf_diffuser = np.sum(my_psf,2)
+    # psf_diffuser = np.sum(my_psf,2)
+    
+    bg = np.mean(my_psf[5:15, 5:15])
+    psf_diffuser = my_psf - bg
 
 
     h = skimage.transform.resize(psf_diffuser, 
                              (psf_diffuser.shape[0]//ds,psf_diffuser.shape[1]//ds), 
                              mode='constant', anti_aliasing=True)
-    
-    return h
+    h /= np.linalg.norm(h.ravel())
+    print(h.shape)
+    return h, bg

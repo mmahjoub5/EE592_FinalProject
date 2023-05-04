@@ -1,9 +1,21 @@
 import torch
+import argparse
+import numpy as np
+# gausian psf 
 
 
-x = torch.tensor([1, 2, 3, 4]).view(2,2)
-y = torch.tensor([1, 2, 3, 4]).view(2, 2,1)
-print(x)
-print(y)
-temp = x * y
-print(temp)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--file", type=str, default="", required=True)
+
+    args = parser.parse_args()
+    try:
+        np.load(args.file)
+        print("File is valid")
+    except: 
+        print(np.load("../" + args.file))
+        
+        print("File is invalid")
+
+if __name__ == "__main__":
+    main()

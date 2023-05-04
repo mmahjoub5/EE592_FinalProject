@@ -67,7 +67,7 @@ def testForwardModel():
     plt.show()
 
 def testForwardModel2(h):
-    x = rgb2gray(np.load(images_jsons["DiffuserImage"]["112"]))
+    x = rgb2gray(np.load(images_jsons["TruthImage"]["112"]))
     print(x.shape)
     h = torch.tensor(h).view(1, h.shape[0], h.shape[1])
     x = torch.tensor(x).view(1, x.shape[0], x.shape[1])
@@ -114,21 +114,22 @@ def gaussianPSF(size, sigma):
     return np.exp(-(x**2 + y**2)/(2*sigma**2)) * (1/(2*np.pi*sigma**2))
         
 def main():
-    h =  load_psf_image("sample_images/psf.tiff", rgb= False)
+    h, bg =  load_psf_image("sample_images/psf.tiff")
     device = "cpu"
 
 
     model = ADMM_Net(h=h)
     dataSet = ImageDataset("sample.json", transform=None)
     image_dataloader = DataLoader(dataset=dataSet, batch_size=1, shuffle=True)
+
     print(dataSet[0]["image"].shape)
     print(dataSet[0]["Target"].shape)
-
+    # test psf
     for i, batch in enumerate(image_dataloader):
         with torch.no_grad():
             input = model(batch["image"].to(device))
             f = plt.figure(1)
-            plt.imshow(input[0, ...], cmap='gray')
+            plt.imshow(C(model,input)[0,...], cmap='gray')
             plt.title('Reconstruction image number {}'.format(batch["Id"]))
             plt.figure(2)
             plt.imshow(batch["Target"][0, ...], cmap='gray')
