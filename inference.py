@@ -28,7 +28,7 @@ def loadTrainTestSplit(path="trainTestSplit"):
         return train_idx, test_idx
     else:
         return None
-    
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkfile", type=str, default="", required=True)
@@ -40,7 +40,7 @@ def main():
     #model.eval()
     print(args.loadIndex)
     #load checkpoint
-    checkpoint = torch.load(args.checkfile)
+    checkpoint = torch.load(args.checkfile,map_location=torch.device('cpu'))
     model.load_state_dict(checkpoint["model_state_dict"])
     if not args.loadIndex:
         print("we are here")

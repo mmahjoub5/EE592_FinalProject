@@ -128,10 +128,12 @@ def main():
     for i, batch in enumerate(image_dataloader):
         with torch.no_grad():
             input = model(batch["image"].to(device))
-            f = plt.figure(1)
+            plt.figure(1)
+            plt.imshow(batch["image"][0,...], cmap='gray')        
+            f = plt.figure(2)            
             plt.imshow(C(model,input)[0,...], cmap='gray')
             plt.title('Reconstruction image number {}'.format(batch["Id"]))
-            plt.figure(2)
+            plt.figure(3)
             plt.imshow(batch["Target"][0, ...], cmap='gray')
             plt.title('Target image number {}'.format(batch["Id"]))
             plt.show()

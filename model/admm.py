@@ -6,7 +6,7 @@ from torch import fft
 import matplotlib.pyplot as plt
 
 class ADMM_Net(nn.Module):
-    def __init__(self, h, batchSize= 1, rgb = False, cuda_device = torch.device("cpu"), plotImages = False) -> None:
+    def __init__(self, h, batchSize= 1, rgb = False, cuda_device = torch.device("cpu"), plotImages = False, ) -> None:
         super(ADMM_Net, self).__init__()
         self.printstats = True
          ## Initialize constants 
@@ -24,18 +24,17 @@ class ADMM_Net(nn.Module):
             self.fullSize = (self.batch_size, 2 * self.DIMS0, 2 * self.DIMS1)
             self.stackedShape = (self.batch_size, 2 * self.DIMS0, 2 * self.DIMS1, 2)
 
-        self.h_var = torch.nn.Parameter(torch.tensor(h, dtype=torch.float64, device=cuda_device), requires_grad=False)  # Kernel
+        self.h_var = torch.nn.Parameter(torch.tensor(h, dtype=torch.float64, device=cuda_device).view(1, h.shape[0], h.shape[1]), requires_grad=False)  # Kernel
         
 
         self.PAD_SIZE0 = int((self.DIMS0)//2)                           # Pad size to 2* size of PSF
         self.PAD_SIZE1 = int((self.DIMS1)//2)                           # Pad size  to 2 * size of PSF
         ##pdb.set_trace()
-        h = torch.tensor(h).view(1, h.shape[0], h.shape[1])
+        h = torch.tensor(h, dtype=torch.float64).view(1, h.shape[0], h.shape[1])
         ##### Initialize ADMM variables #####
       
-        self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, h)))
+        self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, self.h_var)))
 
-        test = H(torch.ones(self.fullSize), self.H_fft)
         self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
         self.U = torch.zeros((self.fullSize[0], self.fullSize[1], self.fullSize[2], 2), dtype=torch.float64, device=self.cuda_device)
         self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
@@ -64,9 +63,17 @@ class ADMM_Net(nn.Module):
         self.R_div_mat = self.precompute_R_divmat()
         self.tau = torch.tensor(1e-4, dtype = torch.float64, device=self.cuda_device) * 1000
 
-    
-    def plotInput(self, y):
-        if self.plotImages:
+    def restValues(self):
+        self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
+        self.U = torch.zeros((self.fullSize[0], self.fullSize[1], self.fullSize[2], 2), dtype=torch.float64, device=self.cuda_device)
+        self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
+        self.W = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
+        self.alpha1_k = torch.zeros_like(H(self.X, self.H_fft))
+        self.alpha2_k = torch.zeros_like(Psi(self, self.X))
+        self.alpha3_k = torch.zeros_like(self.W)
+
+    def plotInput(self, y, plot=False):
+        if self.plotImages or plot:
             plt.figure()
             plt.title("input")
             plt.imshow(y[0,...], cmap='gray')
@@ -75,14 +82,16 @@ class ADMM_Net(nn.Module):
     def forward(self, input):
         self.batch_size = input.shape[0]   
         y  = input 
-        self.plotInput(y)
+        #self.plotInput(y)
 
         # initial self.X    
         self.iterations = 100
         for i in range(self.iterations):
             self.X  = self.admm_updates(y)
-    
-        return self.X
+
+        temp =  C(self,self.X)
+        #self.plotImage(temp, "final output", plot=True)
+        return temp
 
     
     def precompute_R_divmat(self):
@@ -90,8 +99,8 @@ class ADMM_Net(nn.Module):
         Ltl_compotent = self.mu2 * np.abs(self.LtL)
         return 1./(HTH + Ltl_compotent + self.mu3)
 
-    def plotImage(self, inputImage, title):
-        if self.plotImages:
+    def plotImage(self, inputImage, title, plot=False):
+        if self.plotImages or plot:
             plt.figure()
             plt.title(title)
             plt.imshow(inputImage[0,...], cmap='gray')
@@ -126,12 +135,12 @@ class ADMM_Net(nn.Module):
         self.alpha2_k = self.alpha2_k + self.mu2 * (Psi(self,self.X) - self.U)
         self.alpha3_k = self.alpha3_k + self.mu3 * (self.X - self.W)
 
-        print("U shape: ", self.U.shape)
-        print("V shape: ", self.V.shape)
-        print("W shape: ", self.W.shape)
-        print("X shape: ", self.X.shape)
-        print("alpha1_k shape: ", self.alpha1_k.shape)
-        print("alpha2_k shape: ", self.alpha2_k.shape)
-        print("alpha3_k shape: ", self.alpha3_k.shape)
+        # print("U shape: ", self.U.shape)
+        # print("V shape: ", self.V.shape)
+        # print("W shape: ", self.W.shape)
+        # print("X shape: ", self.X.shape)
+        # print("alpha1_k shape: ", self.alpha1_k.shape)
+        # print("alpha2_k shape: ", self.alpha2_k.shape)
+        # print("alpha3_k shape: ", self.alpha3_k.shape)
         #self.r_k = r_calc(self, w_k, v_k, alpha1_k, alpha2_k, alpha3_k, mu1, mu2, mu3, u_k)
         return self.X

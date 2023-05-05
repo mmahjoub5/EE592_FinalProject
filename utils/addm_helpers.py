@@ -6,7 +6,8 @@ from torch import fft
 ## 2D case 
 ## TODO: 
 def H(xk, H_fft): 
-    print(xk)
+    #print(xk)
+    # import pdb; pdb.set_trace()
     return torch.real(fft.fftshift(fft.ifft2(fft.fft2(fft.ifftshift(xk))*H_fft)))
 def HT(x, H_fft):
     x_zeroed = fft.ifftshift(x)
@@ -14,7 +15,7 @@ def HT(x, H_fft):
 
 
 def CT(model, x):
-    print(model.PAD_SIZE1, model.PAD_SIZE1, model.PAD_SIZE0, model.PAD_SIZE0)
+    #print(model.PAD_SIZE1, model.PAD_SIZE1, model.PAD_SIZE0, model.PAD_SIZE0)
     PADDING = (model.PAD_SIZE1, model.PAD_SIZE1, model.PAD_SIZE0, model.PAD_SIZE0)
     return F.pad(x, PADDING, 'constant', 0)
 
@@ -156,6 +157,9 @@ def U_update(model, eta, image_est, tau, mu2):
 def r_calc(model, w_k, v_k, alpha1_k, alpha2_k, alpha3_k , mu_1, mu_2, mu_3, u_k):
     return (mu_3 * w_k - alpha3_k) + PsiT(model, mu_2* u_k  - alpha2_k) + (HT(mu_1 * v_k - alpha1_k, model.H_fft))
 
+def LeAmm_r_calc(model, w_k, v_k, alpha1_k, alpha3_k , mu_1, mu_2, mu_3, u_k):
+    return (mu_3 * w_k - alpha3_k) + mu_2* u_k + (HT(mu_1 * v_k - alpha1_k, model.H_fft))
+
 def X_update(w, alphak_3, u, alphak_2, x, alphak_1, H_fft, R_divmat ):
     freq_space_result = R_divmat* torch.fft.fft2( torch.fft.ifftshift(r_calc(w, alphak_3, u, alphak_2, x, alphak_1, H_fft)) )
     return torch.real(torch.fft.fftshift(torch.fft.ifft2(freq_space_result)))
@@ -225,7 +229,7 @@ def soft_2d_gradient2_rgb(model, v,h,tau):
     import pdb; ###pdb.set_trace()
     mag = torch.sqrt(vv*vv + hh*hh)
 
-    print(mag.type())
+    #print(mag.type())
 
     magt = torch.max(mag - tau, z0, out=None)
     mag = torch.max(mag - tau, z0, out=None) + tau
@@ -233,10 +237,7 @@ def soft_2d_gradient2_rgb(model, v,h,tau):
     #magt = smax(mag - tau, torch.zeros_like(mag, dtype = torch.float32))
     #mag = smax(mag - tau, torch.zeros_like(mag, dtype = torch.float32)) + tau
     mmult = magt/(mag)#+1e-5)
-    if torch.any(mmult != mmult):
-        print('here')
-    if torch.any(v != v):
-        print('there')
+
 
     return v*mmult[:,:, :-1,:], h*mmult[:,:, :,:-1]
 

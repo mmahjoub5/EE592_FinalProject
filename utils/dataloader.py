@@ -13,7 +13,6 @@ class ImageDataset(Dataset):
             self.json_file = json.load(f)
         self.transform = transform
         self.keys  = list(self.json_file["DiffuserImage"].keys())
-        print(self.json_file.keys())
         self.rgb = rgb
         self.bg = bg
     def __len__(self):
@@ -27,24 +26,20 @@ class ImageDataset(Dataset):
 
         if self.rgb == True:
             try:
-                print(image_path)
                 image = np.load(image_path)
                 label = np.load(label_path)
-
-                image = torch.FloatTensor(image).permute(2,0,1)
-                label = torch.FloatTensor(label).permute(2,0,1)
+                image = torch.tensor(image, dtype=torch.float64).permute(2,0,1)
+                label = torch.tensor(label, dtype=torch.float64).permute(2,0,1)
                 if self.bg is not None:
                     image = image - self.bg
                     label = label - self.bg
             except:
                 print("Error loading image: ", image_path)
         else:
-
             image = rgb2gray(np.load(image_path))
             label = rgb2gray(np.load(label_path))
-
-            image = torch.FloatTensor(image)
-            label = torch.FloatTensor(label)
+            image = torch.tensor(image, dtype=torch.float64)
+            label = torch.tensor(label, dtype=torch.float64)
 
         # should we normalize the image here?
         image /= torch.norm(image.ravel())
