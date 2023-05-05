@@ -8,10 +8,12 @@ import matplotlib.pyplot as plt
 import copy 
 
 class LeADMM(nn.Module):
-    def __init__(self, h, iterations) -> None:
+    def __init__(self, h, iterations, batchSize) -> None:
         super().__init__()
-        self.admm = ADMM_Net(h=h)
-        self.admm2 = ADMM_Net(h=h)
+        self.batchSize = batchSize
+        self.devioce = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.admm = ADMM_Net(h=h, batchSize=batchSize, cuda_device=self.devioce)
+        self.admm2 = ADMM_Net(h=h, batchSize=batchSize, cuda_device=self.devioce)
         self.iterations = iterations
         #learned parameters
         self.mu1 = torch.nn.Parameter(torch.ones(self.iterations) * self.admm.mu1)

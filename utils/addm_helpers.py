@@ -30,7 +30,7 @@ def C(model, x):
         bottom = (model.fullSize[1] + model.sensorSize[1])//2
         left = (model.fullSize[2] - model.sensorSize[2])//2
         right = (model.fullSize[2] + model.sensorSize[2])//2
-        return x[:, top:bottom,left:right]
+        return x[...,top:bottom,left:right]
 
 def pad_zeros_torch(model, x):
     PADDING = (model.PAD_SIZE1, model.PAD_SIZE1, model.PAD_SIZE0, model.PAD_SIZE0)

@@ -24,7 +24,7 @@ class ADMM_Net(nn.Module):
             self.fullSize = (self.batch_size, 2 * self.DIMS0, 2 * self.DIMS1)
             self.stackedShape = (self.batch_size, 2 * self.DIMS0, 2 * self.DIMS1, 2)
 
-        self.h_var = torch.nn.Parameter(torch.tensor(h, dtype=torch.float64, device=cuda_device).view(1, h.shape[0], h.shape[1]), requires_grad=False)  # Kernel
+        #self.h_var = torch.nn.Parameter(torch.tensor(h, dtype=torch.float64, device=cuda_device).view(1, h.shape[0], h.shape[1]), requires_grad=False)  # Kernel
         
 
         self.PAD_SIZE0 = int((self.DIMS0)//2)                           # Pad size to 2* size of PSF
@@ -33,7 +33,7 @@ class ADMM_Net(nn.Module):
         h = torch.tensor(h, dtype=torch.float64).view(1, h.shape[0], h.shape[1])
         ##### Initialize ADMM variables #####
       
-        self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, self.h_var)))
+        self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, h))).to(self.cuda_device)
 
         self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
         self.U = torch.zeros((self.fullSize[0], self.fullSize[1], self.fullSize[2], 2), dtype=torch.float64, device=self.cuda_device)
@@ -59,18 +59,19 @@ class ADMM_Net(nn.Module):
         self.mu3 = torch.tensor(1e-5, dtype = torch.float64, device=self.cuda_device)       
         
 
-        self.V_div_mat  = 1./(CT(self, torch.ones(self.sensorSize, dtype=torch.float64, device=self.cuda_device)) + self.mu1)
+        self.V_div_mat  = (1./(CT(self, torch.ones(self.sensorSize, dtype=torch.float64, device=self.cuda_device)) + self.mu1))
         self.R_div_mat = self.precompute_R_divmat()
         self.tau = torch.tensor(1e-4, dtype = torch.float64, device=self.cuda_device) * 1000
 
-    def restValues(self):
-        self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
-        self.U = torch.zeros((self.fullSize[0], self.fullSize[1], self.fullSize[2], 2), dtype=torch.float64, device=self.cuda_device)
-        self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
-        self.W = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
-        self.alpha1_k = torch.zeros_like(H(self.X, self.H_fft))
-        self.alpha2_k = torch.zeros_like(Psi(self, self.X))
-        self.alpha3_k = torch.zeros_like(self.W)
+    def restValues(self, U= True):
+        self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device).clone()
+        if U:
+            self.U = torch.zeros((self.fullSize[0], self.fullSize[1], self.fullSize[2], 2), dtype=torch.float64, device=self.cuda_device)
+        self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device).clone()
+        self.W = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device).clone()
+        self.alpha1_k = torch.zeros_like(H(self.X, self.H_fft)).to(self.cuda_device).clone()
+        self.alpha2_k = torch.zeros_like(Psi(self, self.X)).to(self.cuda_device).clone()
+        self.alpha3_k = torch.zeros_like(self.W).to(self.cuda_device).clone()
 
     def plotInput(self, y, plot=False):
         if self.plotImages or plot:
@@ -95,8 +96,8 @@ class ADMM_Net(nn.Module):
 
     
     def precompute_R_divmat(self):
-        HTH = self.mu1 * (np.abs(torch.conj(self.H_fft)* self.H_fft))
-        Ltl_compotent = self.mu2 * np.abs(self.LtL)
+        HTH = self.mu1 * (torch.abs(torch.conj(self.H_fft)* self.H_fft))
+        Ltl_compotent = self.mu2 * torch.abs(self.LtL)
         return 1./(HTH + Ltl_compotent + self.mu3)
 
     def plotImage(self, inputImage, title, plot=False):

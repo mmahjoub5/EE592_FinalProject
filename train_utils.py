@@ -35,22 +35,14 @@ def getOptimizer(model):
 
 
 def train_test_split(train_dataset, test_size=0.2, loadIndex = False):
-    if loadIndex and os.path.exists("trainTestSplit/train_idx.npy") and os.path.exists("trainTestSplit/test_idx.npy"):
-        train_idx = np.load("trainTestSplit/train_idx.npy")
-        test_idx = np.load("trainTestSplit/test_idx.npy")
-        train_sampler = SubsetRandomSampler(train_idx)
-        test_sampler = SubsetRandomSampler(test_idx)
-        return train_sampler, test_sampler
-    
     num_train = len(train_dataset)
     indices = list(range(num_train))
     split = int(np.floor(0.1 * num_train))
+    print(split)
 
     np.random.seed(0)
     np.random.shuffle(indices)
     train_idx, valid_idx = indices[split:], indices[:split]
-    np.save("trainTestSplit/train_idx.npy", train_idx)
-    np.save("trainTestSplit/test_idx.npy", valid_idx)
     train_sampler = SubsetRandomSampler(train_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
     return train_sampler, valid_sampler

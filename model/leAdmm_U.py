@@ -14,20 +14,29 @@ from utils.addm_helpers import *
 class leAdmm_U(nn.Module):
     def __init__(self, h, iterations, batchSize ) -> None:
         super().__init__() 
-        self.admm = ADMM_Net(h=h, batchSize=batchSize)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.admm = ADMM_Net(h=h, batchSize=batchSize, cuda_device=self.device)
         self.admm.alpha2_k = None
         self.iterations = iterations
+        self.admm.U = None
         self.admm.U = torch.zeros_like(self.admm.X)
         self.U_net = UNet_small((1, 540, 960)).double()
         self.batchSize  = batchSize
         self.reshapeForCnn()
+        # self.admm.mu1 = nn.Parameter(self.admm.mu1, requires_grad=True).clone()
+        # self.admm.mu2 = nn.Parameter(self.admm.mu2, requires_grad=True).clone()
+        # self.admm.mu3 = nn.Parameter(self.admm.mu3, requires_grad=True).clone() 
+        # self.admm.tau = nn.Parameter(self.admm.tau, requires_grad=True).clone()
 
     def forward(self, x):
+        w = x.clone()
         for i in range(self.iterations):
-            self.admm.U = self.U_net(self.admm.X.double())
+            self.admm.U = self.U_net(self.admm.X.double().clone())
+            print("iteration: ", i)
+            print(self.admm.U.shape)
             for batch in range(self.batchSize):
-                self.admm.X[batch,...] = self.admm_update(x[batch,...], batch= batch)
-        self.admm.restValues()
+                self.admm.X[batch,...] = self.admm_update(w[batch,...], batch= batch)
+        #self.admm.restValues(U=False)
         self.reshapeForCnn()
         return C(self.admm, self.admm.X)
         

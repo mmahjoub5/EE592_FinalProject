@@ -12,8 +12,6 @@ class ConvBnRelu2d(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
-        #import pdb; pdb.set_trace()
-        print("x shape: ", x.shape)
         x = self.conv(x)
         x = self.bn(x)
         x = self.relu(x)
@@ -101,7 +99,6 @@ class UNet_small(nn.Module):
     def __init__(self, in_shape):
         super(UNet_small, self).__init__()
         channels, height, width = in_shape
-        print(type(channels))
         self.down1 = StackEncoder(1, 24, kernel_size=3)  # 512
 
         self.up1 = StackDecoder(24, 24, 24, kernel_size=3)  # 512

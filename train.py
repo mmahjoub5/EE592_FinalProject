@@ -17,14 +17,16 @@ def main():
     parser.add_argument("--json", type=str, default="", required=True)
     parser.add_argument("--batch_size", type=int, default=-1, required=True)
     parser.add_argument("--model", type=int, default=-1, required=True)
+    parser.add_argument("--psf", type=str, default="", required=True)
     args = parser.parse_args()
     print(args)
     if args.model == 0:
         trainUnet(args.epochs, args.json, batch_size=args.batch_size)
     elif args.model == 1:
-        train_leAdmm(args.epochs, args.json, args.batch_size, psfFile="sample_images/psf.tiff")
+        print("Training LeADMM")
+        train_leAdmm(args.epochs, args.json, args.batch_size, psfFile=args.psf, U=False)
     elif args.model == 3:
-        train_leAdmm(args.epochs, args.json, args.batch_size, psfFile="sample_images/psf.tiff", U=True)
+        train_leAdmm(args.epochs, args.json, args.batch_size, psfFile=args.psf, U=True)
     # save the model    
 if __name__ == "__main__":
     main()
