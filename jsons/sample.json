@@ -1,0 +1,1 @@
+{"DiffuserImage": {"112": "sample_images/diffuser/im112.npy", "43": "sample_images/diffuser/im43.npy", "65": "sample_images/diffuser/im65.npy", "157": "sample_images/diffuser/im157.npy"}, "TruthImage": {"112": "sample_images/lensed/im112.npy", "43": "sample_images/lensed/im43.npy", "65": "sample_images/lensed/im65.npy", "157": "sample_images/lensed/im157.npy"}}

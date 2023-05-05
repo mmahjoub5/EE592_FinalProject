@@ -6,7 +6,7 @@ from torch import fft
 import matplotlib.pyplot as plt
 
 class ADMM_Net(nn.Module):
-    def __init__(self, h, batchSize= 1, rgb = False, cuda_device = torch.device("cpu"), plotImages = False, ) -> None:
+    def __init__(self, h, batchSize= 1, rgb = False, cuda_device = torch.device("cpu"), plotImages = False, ADMM=False) -> None:
         super(ADMM_Net, self).__init__()
         self.printstats = True
          ## Initialize constants 
@@ -19,10 +19,14 @@ class ADMM_Net(nn.Module):
         if self.rgb:
             self.sensorSize = (self.batch_size, 3, self.DIMS0, self.DIMS1)
             self.fullSize = (self.batch_size, 3, 2 * self.DIMS0, 2 * self.DIMS1)
-        else:
+        elif ADMM:
             self.sensorSize = (self.batch_size, self.DIMS0, self.DIMS1)
             self.fullSize = (self.batch_size, 2 * self.DIMS0, 2 * self.DIMS1)
             self.stackedShape = (self.batch_size, 2 * self.DIMS0, 2 * self.DIMS1, 2)
+        else:
+            self.sensorSize = (self.batch_size, 1, self.DIMS0, self.DIMS1)
+            self.fullSize = (self.batch_size, 1, 2 * self.DIMS0, 2 * self.DIMS1)
+            self.stackedShape = (self.batch_size, 1, 2 * self.DIMS0, 2 * self.DIMS1, 2)
 
         #self.h_var = torch.nn.Parameter(torch.tensor(h, dtype=torch.float64, device=cuda_device).view(1, h.shape[0], h.shape[1]), requires_grad=False)  # Kernel
         
@@ -36,7 +40,7 @@ class ADMM_Net(nn.Module):
         self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, h))).to(self.cuda_device)
 
         self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
-        self.U = torch.zeros((self.fullSize[0], self.fullSize[1], self.fullSize[2], 2), dtype=torch.float64, device=self.cuda_device)
+        self.U = torch.zeros((self.batch_size, 1, 2 * self.DIMS0, 2 * self.DIMS1, 2) , dtype=torch.float64, device=self.cuda_device)
         self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
         self.W = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
         self.alpha1_k = torch.zeros_like(H(self.X, self.H_fft))
@@ -44,14 +48,6 @@ class ADMM_Net(nn.Module):
         self.alpha3_k = torch.zeros_like(self.W)
        
         # print all the shapes 
-        print("H_fft shape: ", self.H_fft.shape)
-        print("X shape: ", self.X.shape)
-        print("U shape: ", self.U.shape)
-        print("V shape: ", self.V.shape)
-        print("W shape: ", self.W.shape)
-        print("alpha1_k shape: ", self.alpha1_k.shape)
-        print("alpha2_k shape: ", self.alpha2_k.shape)
-        print("alpha3_k shape: ", self.alpha3_k.shape)
         
         self.LtL = make_laplacian(self)
         self.mu1 = torch.tensor(1e-6, dtype = torch.float64, device=self.cuda_device)
@@ -63,10 +59,21 @@ class ADMM_Net(nn.Module):
         self.R_div_mat = self.precompute_R_divmat()
         self.tau = torch.tensor(1e-4, dtype = torch.float64, device=self.cuda_device) * 1000
 
+    def printShapes(self):
+        print("H_fft shape: ", self.H_fft.shape)
+        print("X shape: ", self.X.shape)
+        print("U shape: ", self.U.shape)
+        print("V shape: ", self.V.shape)
+        print("W shape: ", self.W.shape)
+        print("alpha1_k shape: ", self.alpha1_k.shape)
+        print("alpha2_k shape: ", self.alpha2_k.shape)
+        print("alpha3_k shape: ", self.alpha3_k.shape)
+        
+
     def restValues(self, U= True):
         self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device).clone()
         if U:
-            self.U = torch.zeros((self.fullSize[0], self.fullSize[1], self.fullSize[2], 2), dtype=torch.float64, device=self.cuda_device)
+            self.U = torch.zeros(self.stackedShape, dtype=torch.float64, device=self.cuda_device)
         self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device).clone()
         self.W = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device).clone()
         self.alpha1_k = torch.zeros_like(H(self.X, self.H_fft)).to(self.cuda_device).clone()
@@ -83,15 +90,12 @@ class ADMM_Net(nn.Module):
     def forward(self, input):
         self.batch_size = input.shape[0]   
         y  = input 
-        #self.plotInput(y)
 
-        # initial self.X    
         self.iterations = 100
         for i in range(self.iterations):
             self.X  = self.admm_updates(y)
 
         temp =  C(self,self.X)
-        #self.plotImage(temp, "final output", plot=True)
         return temp
 
     

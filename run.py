@@ -118,7 +118,7 @@ def main():
     device = "cpu"
 
 
-    model = ADMM_Net(h=h)
+    model = ADMM_Net(h=h, batchSize=1, cuda_device=device, ADMM=True)
     dataSet = ImageDataset("sample.json", transform=None)
     image_dataloader = DataLoader(dataset=dataSet, batch_size=1, shuffle=True)
 
@@ -130,8 +130,9 @@ def main():
             input = model(batch["image"].to(device))
             plt.figure(1)
             plt.imshow(batch["image"][0,...], cmap='gray')        
-            f = plt.figure(2)            
-            plt.imshow(C(model,input)[0,...], cmap='gray')
+            f = plt.figure(2)      
+            print(input.shape)   
+            plt.imshow(input[0,...], cmap='gray')
             plt.title('Reconstruction image number {}'.format(batch["Id"]))
             plt.figure(3)
             plt.imshow(batch["Target"][0, ...], cmap='gray')

@@ -12,7 +12,7 @@ class LeADMM(nn.Module):
         super().__init__()
         self.batchSize = batchSize
         self.devioce = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.admm = ADMM_Net(h=h, batchSize=batchSize, cuda_device=self.devioce)
+        self.admm = ADMM_Net(h=h, batchSize=batchSize, cuda_device=self.devioce, ADMM=True)
         self.admm2 = ADMM_Net(h=h, batchSize=batchSize, cuda_device=self.devioce)
         self.iterations = iterations
         #learned parameters
@@ -34,61 +34,49 @@ class LeADMM(nn.Module):
         plt.show()
 
     def forward(self, x):
-        w = copy.deepcopy(x)
+        w = x.clone()
         self.admm2.restValues()
         self.admm.restValues()
-        
+        # self.admm.printShapes()
         batch_output  = 0
 
-        if x.shape[0] > 1: #if more than one batch
-            for b in range(x.shape[0]):
-                for i in range(self.iterations):
-                    print("iteration: ", i)
-                    batch_output = self.leadmm_update(w[b,...], i)
-                x[b,:,:] = C(self.admm,batch_output)
-                print(x.shape)
-                #self.plotBatchImage(x[b,:,:] , "final x leadmm {}".format(b))
-                self.admm.restValues()
-                self.admm2.restValues()
+        output = torch.zeros_like(self.admm.X)
+        for i in range(self.iterations):
+            print("iteration: ", i)
+            for batch in range(self.batchSize):
+                output[batch,...] = self.leadmm_update(w[batch,...], i, batch)
+                
+            self.admm.restValues()
+                
+            # self.admm.printShapes()
+        return C(self.admm, output)
+            
 
-            return x
-        else:
-            for i in range(self.iterations):
-                print("iteration: ", i)
-                self.admm.X = self.leadmm_update(w, i)
-                self.plot(self.admm.X, "final x leadmm")
-            return C(self.admm, self.admm.X)
-
-        
-
-
-
-
-    def leadmm_update(self, y, i):
-        
-        self.admm.U  = U_update(self.admm, self.admm.alpha2_k, self.admm.X, self.tau[i].clone(), self.mu2[i].clone())
+    def leadmm_update(self, y, i, batch):
+        self.admm.U[batch,...]  = U_update(self.admm, self.admm.alpha2_k[batch,...].clone(), self.admm.X[batch,...].clone(), self.tau[i].clone(), self.mu2[i].clone())
 
         # uncropped v update
-        self.admm.V = self.admm.V_div_mat * (self.admm.alpha1_k + self.mu1[i].clone() *  H(self.admm.X, self.admm.H_fft) + CT(self.admm, y))
+        self.admm.V[batch,...] = self.admm.V_div_mat[batch,...].clone() * (self.admm.alpha1_k[batch,...].clone() + self.mu1[i].clone() *  H(self.admm.X[batch,...].clone(), self.admm.H_fft) + CT(self.admm, y))
         self.admm.plotImage(self.admm.V, "uncropped v")
 
         # w update
-        old_w = self.admm.W
-        zeros = torch.zeros(self.admm.fullSize, dtype = torch.float64, device=self.admm.cuda_device)
-        self.admm.W = torch.maximum(self.admm.alpha3_k/self.mu3[i].clone() + self.admm.X, zeros)
+        old_w = self.admm.W[batch,...].clone()
+        zeros = torch.zeros_like(self.admm.X[batch,...].clone(), dtype = torch.float64, device=self.admm.cuda_device)
+        self.admm.W[batch,...] = torch.maximum(self.admm.alpha3_k[batch,...].clone() /self.mu3[i].clone() + self.admm.X[batch,...].clone(), zeros)
         self.admm.plotImage(self.admm.W, "thresholded w")
 
         # x update (why a conv here????)
-        r_k = r_calc(self.admm, self.admm.W, self.admm.V, self.admm.alpha1_k, self.admm.alpha2_k, self.admm.alpha3_k, self.mu1[i].clone(), self.mu2[i].clone(), self.mu3[i].clone(), self.admm.U)
+        r_k = r_calc(self.admm, self.admm.W[batch,...].clone(), self.admm.V[batch,...].clone(), self.admm.alpha1_k[batch,...].clone(), self.admm.alpha2_k[batch,...].clone(), self.admm.alpha3_k[batch,...].clone(), self.mu1[i].clone(), self.mu2[i].clone(), self.mu3[i].clone(), self.admm.U[batch,...].clone())
         self.admm.plotImage(r_k, "r_k")
-       
-        self.admm.X = self.admm.R_div_mat * fft.fft2(fft.ifftshift(r_k))
-        self.admm.X = torch.real(fft.fftshift(fft.ifft2(self.admm.X)))
-        self.admm.plotImage(self.admm.X, "x update")
+
+        self.admm.X[batch,...] = self.admm.R_div_mat[batch,...].clone() * fft.fft2(fft.ifftshift(r_k))
+        self.admm.X[batch,...] = torch.real(fft.fftshift(fft.ifft2(self.admm.X[batch,...].clone())))
+        self.admm.plotImage(self.admm.X[batch,...], "x update")
 
         # dual updates/ lagrian
-        self.admm.alpha1_k = self.admm.alpha1_k + self.mu1[i].clone() * (H(self.admm.X, self.admm.H_fft) - self.admm.V)
-        self.admm.alpha2_k = self.admm.alpha2_k + self.mu2[i].clone() * (Psi(self.admm,self.admm.X) - self.admm.U)
-        self.admm.alpha3_k = self.admm.alpha3_k + self.mu3[i].clone() * (self.admm.X - self.admm.W)
+
+        self.admm.alpha1_k[batch,...] = self.admm.alpha1_k[batch,...].clone() + self.mu1[i].clone() * (H(self.admm.X[batch,...], self.admm.H_fft) - self.admm.V[batch,...])
+        self.admm.alpha2_k[batch,...] = self.admm.alpha2_k[batch,...].clone() + self.mu2[i].clone() * (Psi(self.admm,self.admm.X[batch,...]) - self.admm.U[batch,...])
+        self.admm.alpha3_k[batch,...] = self.admm.alpha3_k[batch,...].clone() + self.mu3[i].clone() * (self.admm.X[batch,...] - self.admm.W[batch,...])
         
-        return self.admm.X
+        return self.admm.X[batch,...]

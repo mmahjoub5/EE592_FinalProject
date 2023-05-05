@@ -15,6 +15,7 @@ from torch import autograd
 import matplotlib.pyplot as plt
 
 
+
 def evaluate(model, loss, testLoader):
     running_loss = 0.0
     with torch.no_grad:
@@ -38,16 +39,16 @@ def train_leAdmm(epochs, json, batch_size, psfFile, U:bool):
     train_dataLoad = DataLoader(dataset=dataSet, batch_size=batch_size, sampler=train)
     test_dataLoad = DataLoader(dataset=dataSet, batch_size=batch_size, sampler=test)
     
-    assert len(train_dataLoad) > 0
-    print("Length of train data: ", len(train_dataLoad))
-    assert len(test_dataLoad) > 0
-    print("Length of test data: ", len(test_dataLoad))
+    # assert len(train_dataLoad) > 0
+    # print("Length of train data: ", len(train_dataLoad))
+    # assert len(test_dataLoad) > 0
+    # print("Length of test data: ", len(test_dataLoad))
     # create the model
 
     if U:
         model = leAdmm_U(h =h , iterations=5, batchSize=batch_size)
     else:
-        model = LeADMM(h =h , iterations=5, batchSize=batch_size)
+        model = LeADMM(h =h , iterations=30, batchSize=batch_size)
     model.double()
     model.to(device)
     loss_fn = torch.nn.MSELoss()
@@ -55,7 +56,7 @@ def train_leAdmm(epochs, json, batch_size, psfFile, U:bool):
 
     assert len(params) > 0
    
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-10, weight_decay=0.0005)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.0005)
     running_loss = 0.0
     model.train()
     x = autograd.set_detect_anomaly(True)
@@ -68,26 +69,30 @@ def train_leAdmm(epochs, json, batch_size, psfFile, U:bool):
             target = (target/torch.max(target)).double()
             target = target.view(batch_size, 1, 270, 480)
             input, target = input.to(device), target.to(device)
-            with torch.set_grad_enabled(True):
-                output = model(input)
-                loss = loss_fn(output, target)
-                print(loss.grad_fn)
-                print("loss: ", loss)
-                print(loss)
-                print("back prop")
-                optimizer.zero_grad()
-                loss.backward(retain_graph=True)
-                optimizer.step()
-                running_loss += loss.item()
-            del input, target, output
-            import gc; gc.collect()
-            torch.cuda.empty_cache()
+            with torch.autograd.set_detect_anomaly(True):
+                with torch.set_grad_enabled(True):
+                    output = model(input)
+                    print("output: ", output.shape)
+                    loss = loss_fn(output, target)
+                    print("loss gradF ", loss.grad_fn)
+                    print("loss: ", loss)
+                    print("back prop")
+                    optimizer.zero_grad()   
+                    loss.backward(retain_graph=True)
+                    optimizer.step()
+                    running_loss += loss.item()
+                    plt.figure()
+                    plt.imshow(output[0,...].detach().cpu().numpy(), cmap='gray')
+                    plt.savefig("output.png")
+                    plt.figure()
         if epoch % 2 == 0:
             print("Epoch: ", epoch, " Loss: ", running_loss)
             saveCheckPoint(epoch, model.state_dict(), optimizer, running_loss, "checkpoints/leAdmm_epoch" + str(epoch) + ".pt")
             running_loss = 0.0
-            test_loss = evaluate(model, loss_fn, test_dataLoad)
-            print("test loss: ", test_loss)
+            
+            if len(test_dataLoad) > 0:
+                test_loss = evaluate(model, loss_fn, test_dataLoad)
+                print("test loss: ", test_loss)
 
     print("Finished Training")
     saveCheckPoint(epoch, model.state_dict(), optimizer, running_loss, "checkpoints/leAdmm_epoch" + str(epochs) + ".pt")
