@@ -6,11 +6,12 @@ from torch import fft
 import matplotlib.pyplot as plt
 
 class ADMM_Net(nn.Module):
-    def __init__(self, h, batchSize= 1, rgb = False, cuda_device = torch.device("cpu"), plotImages = False, ADMM=False) -> None:
+    def __init__(self, h, batchSize= 1, rgb = False, iterations=100, plotImages = False, ADMM=False) -> None:
         super(ADMM_Net, self).__init__()
         self.printstats = True
          ## Initialize constants 
-        self.cuda_device = cuda_device
+        self.iterations = iterations
+        self.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.DIMS0 = h.shape[0]  # Image Dimensions
         self.DIMS1 = h.shape[1]  # Image Dimensions
         self.batch_size = batchSize
@@ -40,7 +41,7 @@ class ADMM_Net(nn.Module):
         self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, h))).to(self.cuda_device)
 
         self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
-        self.U = torch.zeros((self.batch_size, 1, 2 * self.DIMS0, 2 * self.DIMS1, 2) , dtype=torch.float64, device=self.cuda_device)
+        self.U = torch.zeros(self.stackedShape , dtype=torch.float64, device=self.cuda_device)
         self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
         self.W = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
         self.alpha1_k = torch.zeros_like(H(self.X, self.H_fft))
@@ -70,7 +71,7 @@ class ADMM_Net(nn.Module):
         print("alpha3_k shape: ", self.alpha3_k.shape)
         
 
-    def restValues(self, U= True):
+    def resetValues(self, U= True):
         self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device).clone()
         if U:
             self.U = torch.zeros(self.stackedShape, dtype=torch.float64, device=self.cuda_device)
@@ -90,8 +91,7 @@ class ADMM_Net(nn.Module):
     def forward(self, input):
         self.batch_size = input.shape[0]   
         y  = input 
-
-        self.iterations = 100
+       
         for i in range(self.iterations):
             self.X  = self.admm_updates(y)
 
@@ -108,12 +108,13 @@ class ADMM_Net(nn.Module):
         if self.plotImages or plot:
             plt.figure()
             plt.title(title)
-            plt.imshow(inputImage[0,...], cmap='gray')
+            plt.imshow(inputImage[0,...].detach().numpy(), cmap='gray')
             plt.show()
 
 
     # gray scaled/2D image
     def admm_updates(self, y):
+        print("admm updates")
         # u update
         self.U  = U_update(self, self.alpha2_k, self.X, self.tau, self.mu2)
 
@@ -122,30 +123,21 @@ class ADMM_Net(nn.Module):
         self.plotImage(self.V, "uncropped v")
 
         # w update
-        old_w = self.W
         zeros = torch.zeros(self.fullSize, dtype = torch.float64, device=self.cuda_device)
         self.W = torch.maximum(self.alpha3_k/self.mu3 + self.X, zeros)
-        self.plotImage(self.W, "thresholded w")
+        self.plotImage(self.W, "thresholded w ADMM", plot=False)
 
         # x update (why a conv here????)
         r_k = r_calc(self, self.W, self.V, self.alpha1_k, self.alpha2_k, self.alpha3_k, self.mu1, self.mu2, self.mu3, self.U)
-        self.plotImage(r_k, "r_k")
+        self.plotImage(r_k, "r_k Admm", plot=False)
        
         self.X = self.R_div_mat * fft.fft2(fft.ifftshift(r_k))
         self.X = torch.real(fft.fftshift(fft.ifft2(self.X)))
-        self.plotImage(self.X, "x update")
+        self.plotImage(self.X, "x update admm", plot=False)
 
         # dual updates/ lagrian
         self.alpha1_k = self.alpha1_k + self.mu1 * (H(self.X, self.H_fft) - self.V)
         self.alpha2_k = self.alpha2_k + self.mu2 * (Psi(self,self.X) - self.U)
         self.alpha3_k = self.alpha3_k + self.mu3 * (self.X - self.W)
 
-        # print("U shape: ", self.U.shape)
-        # print("V shape: ", self.V.shape)
-        # print("W shape: ", self.W.shape)
-        # print("X shape: ", self.X.shape)
-        # print("alpha1_k shape: ", self.alpha1_k.shape)
-        # print("alpha2_k shape: ", self.alpha2_k.shape)
-        # print("alpha3_k shape: ", self.alpha3_k.shape)
-        #self.r_k = r_calc(self, w_k, v_k, alpha1_k, alpha2_k, alpha3_k, mu1, mu2, mu3, u_k)
         return self.X

@@ -11,13 +11,15 @@ from tqdm import tqdm
 import os 
 from train_utils import * 
 
-def evaluate(model, loss, testLoader):
+def evaluate(model, loss_fn, testLoader, device):
     running_loss = 0.0
-    with torch.no_grad:
+    model.eval()
+    with torch.no_grad():
         for i, data in enumerate(testLoader):
             input, target = data["image"], data["Target"]
+            input, target = input.to(device), target.to(device)
             output = model(input)
-            loss = loss(output, target)
+            loss = loss_fn(output, target)
             print("test loss: ", loss)
             running_loss += loss.item()
         return running_loss
@@ -48,22 +50,24 @@ def trainUnet(epochs, json,  batch_size):
     test_loss = 0.0
     model.train()
 
+    model.double()
+
     # train the model
     for epoch in tqdm(range(epochs)):
-        for i, batch in tqdm(enumerate(train_data)):
+        for i, batch in enumerate(train_data):
             input, target = batch["image"], batch["Target"]
             input, target = input.to(device), target.to(device)
             optimizer.zero_grad()
-            output = model(input)
-            loss = loss_fn(output, target)
+            output = model(input.double())
+            loss = loss_fn(output.double(), target.double())
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item()
-        test_loss = evaluate(model, loss_fn, test_data)
+        test_loss = evaluate(model, loss_fn, test_data, device)
 
-        writer.add_scalar("Loss/train", running_loss, epoch)
-        writer.add_scalar("Loss/test", test_loss, epoch)
+        writer.add_scalar("Unet/Loss/train", running_loss, epoch)
+        writer.add_scalar("Unet/Loss/test", test_loss, epoch)
         
         if epoch % 10 == 0:
             print("Epoch: ", epoch, " Loss: ", running_loss)

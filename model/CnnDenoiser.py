@@ -21,7 +21,6 @@ class CnnDenoiser(nn.Module):
         self.layer4 = ConvBnRelu2d(32, self.inputSize[0], kernel_size=3, padding=1)
     
     def forward(self, x):
-        x = self.layer0(x)
         print(x.shape)
         x = self.layer1(x)
         print(x.shape)
