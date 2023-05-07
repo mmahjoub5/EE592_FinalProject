@@ -40,7 +40,7 @@ class ADMM_Net(nn.Module):
       
         self.H_fft = torch.fft.fft2(torch.fft.ifftshift(CT(self, h))).to(self.cuda_device)
 
-        self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
+        self.X = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device,)
         self.U = torch.zeros(self.stackedShape , dtype=torch.float64, device=self.cuda_device)
         self.V = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)
         self.W = torch.zeros(self.fullSize, dtype=torch.float64, device=self.cuda_device)

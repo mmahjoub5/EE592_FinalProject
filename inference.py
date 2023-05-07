@@ -33,33 +33,35 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkfile", type=str, default="", required=True)
     parser.add_argument("--json", type=str, default="", required=True)
-    parser.add_argument("--loadIndex", type=bool, default=False, required=False)
-    parser.add_argument("--colab", type=bool, default=False, required=False)
     args = parser.parse_args()
     model = UNet270480(in_shape=(3, 270, 480))
-    #model.eval()
-    print(args.loadIndex)
+    model.eval()
     #load checkpoint
     checkpoint = torch.load(args.checkfile,map_location=torch.device('cpu'))
     model.load_state_dict(checkpoint["model_state_dict"])
-    if not args.loadIndex:
-        print("we are here")
-        dataSet = ImageDataset(args.json, rgb=True)
-        dataLoad = DataLoader(dataset=dataSet, batch_size=1)
-    else:
-        train_idx, test_idx = loadTrainTestSplit()
-        dataSet = ImageDataset(args.json, rgb=True)
-        dataLoad = DataLoader(dataset=dataSet, batch_size=1, sampler=test_idx)
+    model.double()
+    print("we are here")
+    dataSet = ImageDataset(args.json, rgb=True)
+    dataLoad = DataLoader(dataset=dataSet, batch_size=1)
 
     print(len(dataLoad))
     for i, image in enumerate(dataLoad):
-        input, target = image["image"], image["Target"]
-        output = model(input)
-        input = input/torch.max(input)
-        output = output/torch.max(output)
-        plotImage(input, "input", args.colab)
-        plotImage(output, "output", args.colab)
-        return
+        with torch.no_grad():
+            input, target = image["image"], image["Target"]
+            id = image["Id"]
+            output = model(input.double())
+            input = input/torch.max(input)
+            output = output/torch.max(output)
+            plt.figure()
+            plt.title("U_NET output")
+            output = output[0,...].permute(1,2,0)
+            plt.imshow(output.detach().cpu().numpy(), cmap='gray')
+           
+            if os.path.exists("images_unet/"): 
+                plt.savefig("images_unet/{}.png".format(id))
+            else:
+                os.mkdir("images_unet/")
+                plt.savefig("images_unet/{}.png".format(id))
 
 
 

@@ -63,7 +63,7 @@ class UNet_small(nn.Module):
 
 
     def forward(self, x):
-        out = x
+        out = x.clone()
         down1, out = self.down1(out)
         out = self.center(out)
         out = self.up1(out, down1)
